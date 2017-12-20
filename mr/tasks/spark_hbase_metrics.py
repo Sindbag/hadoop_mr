@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import heapq
 import json
 import datetime
 import time
@@ -137,9 +138,7 @@ def get_likes_for_date(sc, date):
         .map(lambda x: (x.strip().split('\t')))
         .filter(lambda x: pat.match(x[2]))
         .map(lambda x: (get_id(x[2]), int(x[1]), x[0]))
-        .distinct()
-        .groupBy(lambda x: x[0])
-        .mapValues(lambda v: sorted(v, key=lambda t: (-t[1], t[2]))[:3]))
+        .distinct())
     return pages
 
 
@@ -159,9 +158,17 @@ def get_likes_strike_count(sc, date, days_range=5):
     elif len(likes) == 1:
         reduced = likes[0]
 
+    def heappush(h, el):
+        heapq.heappush(h, el[1:])
+        return heapq.nlargest(3, h, key=lambda x: x[0])
+
+    def heapmerge(lh, rh):
+        h = heapq.merge(lh, rh)
+        return heapq.nlargest(3, h, key=lambda x: x[0])
+
     return (reduced
-        .groupByKey()
-        .mapValues(lambda v: [p[2] for p in sorted(v, key=lambda t: (-t[1], t[2]))[:3]])
+        .groupBy(lambda x: x[0])
+        .aggregateByKey([], heappush, heapmerge)
         .collect()
     )
 
